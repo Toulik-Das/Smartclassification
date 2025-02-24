@@ -4,3 +4,4 @@ pydicom
 transformers
 torch
 pillow
+spacy
