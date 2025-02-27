@@ -1,11 +1,8 @@
 streamlit
+nltk
 pdfplumber
+PyPDF2
 pandas
 numpy
 matplotlib
 scikit-learn
-nltk
-torch
-transformers
-pillow
-PyPDF2
