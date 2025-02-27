@@ -7,7 +7,8 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
-from PyPDF2 import PdfReader
+from streamlit import session_state as ss
+from streamlit_pdf_viewer import pdf_viewer
 
 nltk.download('stopwords')
 
@@ -61,16 +62,22 @@ def main():
     st.title("TF-IDF Text Analyzer with PDF Viewer")
     st.write("Upload a PDF file to analyze and visualize the top-scoring phrases using TF-IDF.")
 
-    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
-    
-    if uploaded_file is not None:
-        # Display PDF in viewer
-        with st.expander("📄 View Uploaded PDF"):
-            st.write("Preview of the uploaded PDF file:")
-            st.pdf(uploaded_file)
+    # Declare session variable for PDF reference
+    if 'pdf_ref' not in ss:
+        ss.pdf_ref = None
+
+    st.file_uploader("Upload PDF file", type=['pdf'], key='pdf')
+
+    if ss.pdf:
+        ss.pdf_ref = ss.pdf  # Backup uploaded PDF
+
+    # PDF Preview
+    if ss.pdf_ref:
+        binary_data = ss.pdf_ref.getvalue()
+        pdf_viewer(input=binary_data, width=700)
 
         with st.spinner("Extracting text and processing..."):
-            text = extract_text_from_pdf(uploaded_file)
+            text = extract_text_from_pdf(ss.pdf_ref)
             processed_text = preprocess_text(text)
             text_data = [processed_text]
             df_tfidf_sorted = tfidf_vectorization(text_data)
