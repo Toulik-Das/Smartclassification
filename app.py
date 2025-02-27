@@ -1,90 +1,77 @@
+import string
+import nltk
+import pdfplumber
+import pandas as pd
+import numpy as np
 import streamlit as st
-import fitz  # PyMuPDF for PDF processing
-import re
-import spacy
-from transformers import pipeline
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+from nltk.corpus import stopwords
 
-# Load NLP Model for Research Classification
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+nltk.download('stopwords')
 
-# Load SpaCy NER Model for PII Detection
-nlp = spacy.load("en_core_web_sm")
+def extract_text_from_pdf(pdf_file):
+    text = ""
+    with pdfplumber.open(pdf_file) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text
+    return text
 
-# Expanded Research Categories
-RESEARCH_CATEGORIES = [
-    "Pharmaceutical Research",
-    "Clinical Trials",
-    "Drug Development",
-    "Medical Science",
-    "Biomedical Engineering",
-    "Bioinformatics",
-    "Artificial Intelligence in Healthcare",
-    "Operations Research",
-    "Supply Chain Management",
-    "Logistics and Transportation",
-    "Finance and Investment",
-    "Risk Analysis",
-    "Blockchain in Finance",
-    "Software Engineering",
-    "Machine Learning Research",
-    "Cybersecurity",
-    "Data Science",
-    "Physics",
-    "Chemical Engineering",
-    "Material Science"
-]
+def preprocess_text(text):
+    text = text.replace('-', ' ')
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    text = text.lower()
+    stop_words = set(stopwords.words('english'))
+    words = text.split()
+    words = [word for word in words if word not in stop_words]
+    text = ' '.join(words)
+    text = ' '.join(text.split())
+    return text
 
-# PII Patterns (Regex-based detection)
-PII_PATTERNS = {
-    "Email": r"[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+",
-    "Phone Number": r"\+?\d[\d -]{8,15}\d",
-    "Address": r"\d{1,5}\s\w+\s\w+",
-    "Name": None  # Detected using SpaCy's Named Entity Recognition
-}
+def tfidf_vectorization(text_data):
+    vectorizer = TfidfVectorizer(ngram_range=(1, 4), stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(text_data)
+    feature_names = vectorizer.get_feature_names_out()
+    df_tfidf = pd.DataFrame(tfidf_matrix.toarray(), columns=feature_names)
+    df_tfidf_sum = df_tfidf.sum(axis=0).reset_index()
+    df_tfidf_sum.columns = ['Phrase', 'TF-IDF Score']
+    df_tfidf_sorted = df_tfidf_sum.sort_values(by='TF-IDF Score', ascending=False)
+    df_tfidf_sorted = df_tfidf_sorted.reset_index(drop=True)
+    df_tfidf_sorted.index = df_tfidf_sorted.index + 1
+    df_tfidf_sorted['Phrase'] = df_tfidf_sorted['Phrase'].str.title()
+    return df_tfidf_sorted
 
-# Streamlit UI Configuration
-st.set_page_config(page_title="Unstructured Data Classifier", layout="wide")
-st.title("📑 Unstructured Data Classifier & PII Detector")
+def plot_bar_chart(df):
+    colors = plt.cm.viridis(np.linspace(0, 1, len(df)))
+    fig, ax = plt.subplots()
+    ax.barh(df['Phrase'], df['TF-IDF Score'], color=colors)
+    ax.set_xlabel('TF-IDF Score')
+    ax.set_title('Top Words or Phrases by Score')
+    plt.xticks(rotation=90, ha='right')
+    plt.tight_layout()
+    ax.invert_yaxis()
+    return fig
 
-uploaded_file = st.sidebar.file_uploader("Upload a PDF file", type=["pdf"])
-
-if uploaded_file:
-    with st.spinner("Processing file..."):
-        # Extract text from PDF
-        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-        text = "\n".join([page.get_text("text") for page in doc])
-
-        st.subheader("📜 Extracted Text")
-        st.text_area("PDF Content", text[:2000] + "..." if len(text) > 2000 else text, height=250)
-
-        # 1️⃣ Research Classification
-        st.subheader("🧠 Research Classification")
-        with st.spinner("Classifying research topic..."):
-            result = classifier(text[:2000], RESEARCH_CATEGORIES)  # Using first 2000 chars for better classification
-            st.write(f"**Primary Research Topic:** {result['labels'][0]} (Score: {result['scores'][0]:.2f})")
-            st.write(f"**Other Possible Topics:** {result['labels'][1]} (Score: {result['scores'][1]:.2f})")
+def main():
+    st.title("TF-IDF Text Analyzer")
+    st.write("Upload a PDF file to analyze and visualize the top-scoring phrases in the document using TF-IDF.")
+    
+    uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+    
+    if uploaded_file is not None:
+        with st.spinner("Extracting text and processing..."):
+            text = extract_text_from_pdf(uploaded_file)
+            processed_text = preprocess_text(text)
+            text_data = [processed_text]
+            df_tfidf_sorted = tfidf_vectorization(text_data)
+            plot = plot_bar_chart(df_tfidf_sorted.head(20))
         
-        # 2️⃣ Personal Information Detection
-        st.subheader("🔍 Personal Information Detection")
-        pii_results = []
+        st.pyplot(plot)
+        
+        st.subheader("Top TF-IDF Phrases")
+        st.dataframe(df_tfidf_sorted.head(20))
 
-        # Regex-based PII detection
-        for pii_type, pattern in PII_PATTERNS.items():
-            if pattern:
-                matches = re.findall(pattern, text)
-                pii_results.extend([(pii_type, match) for match in set(matches)])
-
-        # Name detection using SpaCy
-        doc_nlp = nlp(text)
-        for ent in doc_nlp.ents:
-            if ent.label_ == "PERSON":
-                pii_results.append(("Name", ent.text))
-
-        if pii_results:
-            for pii_type, pii_value in pii_results:
-                st.write(f"🔹 **{pii_type}:** {pii_value}")
-        else:
-            st.success("No personal information detected.")
-
-st.sidebar.markdown("---")
-st.sidebar.info("🚀 Future Features: AWS S3 & SharePoint Integration, DICOM Support, Enhanced Image Classification.")
+if __name__ == "__main__":
+    main()
