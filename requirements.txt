@@ -1,7 +1,7 @@
 streamlit
-pymupdf
-pydicom
-transformers
-torch
-pillow
-spacy
+pdfplumber
+pandas
+numpy
+matplotlib
+scikit-learn
+nltk
