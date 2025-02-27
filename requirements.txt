@@ -8,3 +8,4 @@ nltk
 torch
 transformers
 pillow
+PyPDF2
