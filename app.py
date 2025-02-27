@@ -7,8 +7,12 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
+from transformers import pipeline
 
 nltk.download('stopwords')
+
+image_classifier = pipeline(task="zero-shot-image-classification", model="google/siglip-so400m-patch14-384")
+labels = ['street sweeping', 'litter pickup', 'pothole repair', 'parking enforcement']
 
 def extract_text_from_pdf(pdf_file):
     text = ""
@@ -54,10 +58,14 @@ def plot_bar_chart(df):
     ax.invert_yaxis()
     return fig
 
+def image_mod(image):
+    outputs = image_classifier(image, candidate_labels=labels)
+    result = {dic["label"]: dic["score"] for dic in outputs}
+    return result
+
 def main():
-    st.title("TF-IDF Text Analyzer")
+    st.title("TF-IDF Text & Image Analyzer")
     st.write("Upload a PDF file to analyze and visualize the top-scoring phrases in the document using TF-IDF.")
-    
     uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
     
     if uploaded_file is not None:
@@ -72,6 +80,15 @@ def main():
         
         st.subheader("Top TF-IDF Phrases")
         st.dataframe(df_tfidf_sorted.head(20))
+    
+    st.write("Upload an image to classify its category based on predefined labels.")
+    uploaded_image = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
+    
+    if uploaded_image is not None:
+        with st.spinner("Classifying image..."):
+            image_result = image_mod(uploaded_image)
+        st.write("Classification Results:")
+        st.json(image_result)
 
 if __name__ == "__main__":
     main()
