@@ -76,13 +76,7 @@ def main():
     if ss.pdf:
         ss.pdf_ref = ss.pdf  # Backup uploaded PDF
 
-    # PDF Preview in Sidebar with Scrollbar
     if ss.pdf_ref:
-        binary_data = ss.pdf_ref.getvalue()
-        with st.sidebar:
-            st.write("### PDF Preview")
-            pdf_viewer(input=binary_data, width=350, height=400)  # Set height and width
-
         with st.spinner("Extracting text and processing..."):
             text = extract_text_from_pdf(ss.pdf_ref)
             processed_text = preprocess_text(text)
@@ -94,6 +88,10 @@ def main():
 
         st.subheader("Top TF-IDF Phrases")
         st.dataframe(df_tfidf_sorted.head(20))
+
+        if st.button("View PDF"):
+            binary_data = ss.pdf_ref.getvalue()
+            pdf_viewer(input=binary_data, width=700)
 
 
 if __name__ == "__main__":
