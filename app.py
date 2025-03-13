@@ -18,7 +18,7 @@ def extract_text_from_pdf(pdf_file):
     text = ""
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
-            page_text = page.extract_text()
+            page_text = pdf.pages[0].extract_text()
             if page_text:
                 text += page_text + " "
     return text.strip()
@@ -67,9 +67,11 @@ def main():
     st.title("TF-IDF Text Analyzer with PDF Viewer")
     st.write("Upload a PDF file to analyze and visualize the top-scoring phrases using TF-IDF.")
 
-    # Declare session variable for PDF reference
+    # Declare session variable for PDF reference and toggle
     if 'pdf_ref' not in ss:
         ss.pdf_ref = None
+    if 'show_pdf' not in ss:
+        ss.show_pdf = False
 
     st.file_uploader("Upload PDF file", type=['pdf'], key='pdf')
 
@@ -89,7 +91,10 @@ def main():
         st.subheader("Top TF-IDF Phrases")
         st.dataframe(df_tfidf_sorted.head(20))
 
-        if st.button("View PDF"):
+        if st.button("Toggle PDF View"):
+            ss.show_pdf = not ss.show_pdf
+
+        if ss.show_pdf:
             binary_data = ss.pdf_ref.getvalue()
             pdf_viewer(input=binary_data, width=700)
 
