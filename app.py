@@ -16,13 +16,16 @@ import pptx
 from PIL import Image
 import pytesseract
 import io
+import speech_recognition as sr
+from pydub import AudioSegment
+import tempfile
 
 nltk.download('stopwords')
 
 # Expanded training data for better classification accuracy
 DOCUMENT_TYPES = [
     "Resume", "Research Paper", "Scientific Report", "Medical Report", "Financial Report",
-    "Legal Document", "Business Proposal", "Technical Manual", "Educational Material"
+    "Legal Document", "Business Proposal", "Technical Manual", "Educational Material", "Audio Transcript"
 ]
 
 training_texts = [
@@ -34,7 +37,8 @@ training_texts = [
     "Contract, agreement, clauses, legal terms",  # Legal Document
     "Market analysis, financial projection, business strategy",  # Business Proposal
     "Hardware specifications, installation guide, troubleshooting",  # Technical Manual
-    "Syllabus, learning objectives, course material"  # Educational Material
+    "Syllabus, learning objectives, course material",  # Educational Material
+    "Recorded speech, conversations, audio transcripts"  # Audio Transcript
 ]
 
 classifier = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=300, random_state=42))
@@ -73,6 +77,26 @@ def extract_text_from_image(image_file):
     """Extract text from an image file."""
     image = Image.open(io.BytesIO(image_file.read()))
     return pytesseract.image_to_string(image)
+
+
+def extract_text_from_audio(audio_file):
+    """Extract text from an audio file."""
+    recognizer = sr.Recognizer()
+    audio_format = audio_file.type.split('/')[1]
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{audio_format}') as temp_audio:
+        temp_audio.write(audio_file.read())
+        temp_audio_path = temp_audio.name
+
+    if audio_format in ['mp3', 'mp4']:
+        audio = AudioSegment.from_file(temp_audio_path)
+        temp_audio_path = temp_audio_path.replace(audio_format, 'wav')
+        audio.export(temp_audio_path, format='wav')
+
+    with sr.AudioFile(temp_audio_path) as source:
+        audio_data = recognizer.record(source)
+
+    return recognizer.recognize_google(audio_data)
 
 
 def preprocess_text(text):
@@ -122,7 +146,7 @@ def main():
     """Streamlit app for document text analysis and visualization."""
     st.title("Document Analyzer with TF-IDF and Classification")
 
-    uploaded_file = st.sidebar.file_uploader("Upload File", type=['pdf', 'docx', 'pptx', 'png', 'jpeg', 'jpg'], key='file')
+    uploaded_file = st.sidebar.file_uploader("Upload File", type=['pdf', 'docx', 'pptx', 'png', 'jpeg', 'jpg', 'mp3', 'mp4', 'wav'], key='file')
 
     # Declare session variable for file reference and toggle
     if 'file_ref' not in ss:
@@ -145,6 +169,8 @@ def main():
                 text = extract_text_from_pptx(ss.file_ref)
             elif 'image' in file_type:
                 text = extract_text_from_image(ss.file_ref)
+            elif 'audio' in file_type:
+                text = extract_text_from_audio(ss.file_ref)
             else:
                 st.error("Unsupported file type")
                 return
