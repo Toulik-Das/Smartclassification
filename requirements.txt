@@ -6,6 +6,7 @@ numpy
 matplotlib
 scikit-learn
 python-pptx
+python-docx
 pillow
 pytesseract
 transformers
