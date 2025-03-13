@@ -1,9 +1,12 @@
-streamlit
-streamlit_pdf_viewer
-nltk
-pdfplumber
 pandas
 numpy
-matplotlib
+nltk
+pdfplumber
+streamlit
 scikit-learn
+matplotlib
 streamlit-pdf-viewer
+python-docx
+python-pptx
+pillow
+pytesseract
