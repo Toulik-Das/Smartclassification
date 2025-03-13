@@ -6,7 +6,7 @@ import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import make_pipeline
 from nltk.corpus import stopwords
 from streamlit import session_state as ss
@@ -32,7 +32,7 @@ training_texts = [
     "Syllabus, learning objectives, course material"  # Educational Material
 ]
 
-classifier = make_pipeline(TfidfVectorizer(), MultinomialNB())
+classifier = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=100, random_state=42))
 classifier.fit(training_texts, DOCUMENT_TYPES)
 
 
