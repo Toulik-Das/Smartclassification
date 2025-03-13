@@ -12,6 +12,7 @@ from streamlit_pdf_viewer import pdf_viewer
 
 nltk.download('stopwords')
 
+
 def extract_text_from_pdf(pdf_file):
     """Extract text from a PDF file."""
     text = ""
@@ -22,6 +23,7 @@ def extract_text_from_pdf(pdf_file):
                 text += page_text + " "
     return text.strip()
 
+
 def preprocess_text(text):
     """Preprocess text by removing punctuation, stopwords, and converting to lowercase."""
     text = text.replace('-', ' ')
@@ -31,6 +33,7 @@ def preprocess_text(text):
     words = text.split()
     words = [word for word in words if word not in stop_words]
     return ' '.join(words)
+
 
 def tfidf_vectorization(text_data):
     """Compute TF-IDF scores and return a sorted DataFrame."""
@@ -45,6 +48,7 @@ def tfidf_vectorization(text_data):
     df_tfidf_sorted['Phrase'] = df_tfidf_sorted['Phrase'].str.title()
     return df_tfidf_sorted
 
+
 def plot_bar_chart(df):
     """Generate a bar chart of TF-IDF scores."""
     colors = plt.cm.viridis(np.linspace(0, 1, len(df)))
@@ -56,6 +60,7 @@ def plot_bar_chart(df):
     plt.tight_layout()
     ax.invert_yaxis()
     return fig
+
 
 def main():
     """Streamlit app for PDF text analysis and visualization."""
@@ -71,10 +76,12 @@ def main():
     if ss.pdf:
         ss.pdf_ref = ss.pdf  # Backup uploaded PDF
 
-    # PDF Preview
+    # PDF Preview in Sidebar with Scrollbar
     if ss.pdf_ref:
         binary_data = ss.pdf_ref.getvalue()
-        pdf_viewer(input=binary_data, width=700)
+        with st.sidebar:
+            st.write("### PDF Preview")
+            pdf_viewer(input=binary_data, width=350, height=400)  # Set height and width
 
         with st.spinner("Extracting text and processing..."):
             text = extract_text_from_pdf(ss.pdf_ref)
@@ -84,9 +91,10 @@ def main():
             plot = plot_bar_chart(df_tfidf_sorted.head(20))
 
         st.pyplot(plot)
-        
+
         st.subheader("Top TF-IDF Phrases")
         st.dataframe(df_tfidf_sorted.head(20))
+
 
 if __name__ == "__main__":
     main()
