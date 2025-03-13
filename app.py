@@ -11,6 +11,11 @@ from sklearn.pipeline import make_pipeline
 from nltk.corpus import stopwords
 from streamlit import session_state as ss
 from streamlit_pdf_viewer import pdf_viewer
+from docx import Document
+import pptx
+from PIL import Image
+import pytesseract
+import io
 
 nltk.download('stopwords')
 
@@ -45,6 +50,29 @@ def extract_text_from_pdf(pdf_file):
             if page_text:
                 text += page_text + " "
     return text.strip()
+
+
+def extract_text_from_docx(docx_file):
+    """Extract text from a DOCX file."""
+    doc = Document(docx_file)
+    return ' '.join([para.text for para in doc.paragraphs])
+
+
+def extract_text_from_pptx(pptx_file):
+    """Extract text from a PPTX file."""
+    presentation = pptx.Presentation(pptx_file)
+    text = ""
+    for slide in presentation.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                text += shape.text + " "
+    return text.strip()
+
+
+def extract_text_from_image(image_file):
+    """Extract text from an image file."""
+    image = Image.open(io.BytesIO(image_file.read()))
+    return pytesseract.image_to_string(image)
 
 
 def preprocess_text(text):
@@ -91,22 +119,36 @@ def plot_bar_chart(df):
 
 
 def main():
-    """Streamlit app for PDF text analysis and visualization."""
-    st.title("TF-IDF Text Analyzer with PDF Viewer")
-    st.sidebar.file_uploader("Upload PDF file", type=['pdf'], key='pdf')
+    """Streamlit app for document text analysis and visualization."""
+    st.title("Document Analyzer with TF-IDF and Classification")
 
-    # Declare session variable for PDF reference and toggle
-    if 'pdf_ref' not in ss:
-        ss.pdf_ref = None
-    if 'show_pdf' not in ss:
-        ss.show_pdf = False
+    uploaded_file = st.sidebar.file_uploader("Upload File", type=['pdf', 'docx', 'pptx', 'png', 'jpeg', 'jpg'], key='file')
 
-    if ss.pdf:
-        ss.pdf_ref = ss.pdf  # Backup uploaded PDF
+    # Declare session variable for file reference and toggle
+    if 'file_ref' not in ss:
+        ss.file_ref = None
+    if 'show_file' not in ss:
+        ss.show_file = False
 
-    if ss.pdf_ref:
+    if uploaded_file:
+        ss.file_ref = uploaded_file
+
+    if ss.file_ref:
         with st.spinner("Extracting text and processing..."):
-            text = extract_text_from_pdf(ss.pdf_ref)
+            file_type = ss.file_ref.type
+
+            if 'pdf' in file_type:
+                text = extract_text_from_pdf(ss.file_ref)
+            elif 'officedocument.wordprocessingml' in file_type:
+                text = extract_text_from_docx(ss.file_ref)
+            elif 'officedocument.presentationml' in file_type:
+                text = extract_text_from_pptx(ss.file_ref)
+            elif 'image' in file_type:
+                text = extract_text_from_image(ss.file_ref)
+            else:
+                st.error("Unsupported file type")
+                return
+
             processed_text = preprocess_text(text)
             text_data = [processed_text]
             df_tfidf_sorted = tfidf_vectorization(text_data)
@@ -121,11 +163,11 @@ def main():
         st.subheader("Top TF-IDF Phrases")
         st.dataframe(df_tfidf_sorted.head(20))
 
-        if st.button("Toggle PDF View"):
-            ss.show_pdf = not ss.show_pdf
+        if st.button("Toggle File View"):
+            ss.show_file = not ss.show_file
 
-        if ss.show_pdf:
-            binary_data = ss.pdf_ref.getvalue()
+        if ss.show_file and 'pdf' in file_type:
+            binary_data = ss.file_ref.getvalue()
             pdf_viewer(input=binary_data, width=700)
 
 
