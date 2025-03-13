@@ -32,7 +32,7 @@ training_texts = [
     "Syllabus, learning objectives, course material"  # Educational Material
 ]
 
-classifier = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=100, random_state=42))
+classifier = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=300, random_state=42))
 classifier.fit(training_texts, DOCUMENT_TYPES)
 
 
@@ -93,15 +93,13 @@ def plot_bar_chart(df):
 def main():
     """Streamlit app for PDF text analysis and visualization."""
     st.title("TF-IDF Text Analyzer with PDF Viewer")
-    st.write("Upload a PDF file to analyze and visualize the top-scoring phrases using TF-IDF.")
+    st.sidebar.file_uploader("Upload PDF file", type=['pdf'], key='pdf')
 
     # Declare session variable for PDF reference and toggle
     if 'pdf_ref' not in ss:
         ss.pdf_ref = None
     if 'show_pdf' not in ss:
         ss.show_pdf = False
-
-    st.file_uploader("Upload PDF file", type=['pdf'], key='pdf')
 
     if ss.pdf:
         ss.pdf_ref = ss.pdf  # Backup uploaded PDF
