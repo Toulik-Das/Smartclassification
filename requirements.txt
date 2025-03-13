@@ -14,3 +14,4 @@ pymongo
 pydicom
 spacy
 streamlit_pdf_viewer
+torch
