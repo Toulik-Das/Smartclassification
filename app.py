@@ -6,11 +6,34 @@ import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.pipeline import make_pipeline
 from nltk.corpus import stopwords
 from streamlit import session_state as ss
 from streamlit_pdf_viewer import pdf_viewer
 
 nltk.download('stopwords')
+
+# Expanded training data for better classification accuracy
+DOCUMENT_TYPES = [
+    "Resume", "Research Paper", "Scientific Report", "Medical Report", "Financial Report",
+    "Legal Document", "Business Proposal", "Technical Manual", "Educational Material"
+]
+
+training_texts = [
+    "Experience, education, skills, projects, certifications",  # Resume
+    "Abstract, introduction, methodology, results, conclusion",  # Research Paper
+    "Experiment, observation, analysis, hypothesis",  # Scientific Report
+    "Patient details, diagnosis, treatment, medication",  # Medical Report
+    "Balance sheet, profit and loss, financial statement",  # Financial Report
+    "Contract, agreement, clauses, legal terms",  # Legal Document
+    "Market analysis, financial projection, business strategy",  # Business Proposal
+    "Hardware specifications, installation guide, troubleshooting",  # Technical Manual
+    "Syllabus, learning objectives, course material"  # Educational Material
+]
+
+classifier = make_pipeline(TfidfVectorizer(), MultinomialNB())
+classifier.fit(training_texts, DOCUMENT_TYPES)
 
 
 def extract_text_from_pdf(pdf_file):
@@ -18,7 +41,7 @@ def extract_text_from_pdf(pdf_file):
     text = ""
     with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
-            page_text = pdf.pages[0].extract_text()
+            page_text = page.extract_text()
             if page_text:
                 text += page_text + " "
     return text.strip()
@@ -47,6 +70,11 @@ def tfidf_vectorization(text_data):
     df_tfidf_sorted.index = df_tfidf_sorted.index + 1
     df_tfidf_sorted['Phrase'] = df_tfidf_sorted['Phrase'].str.title()
     return df_tfidf_sorted
+
+
+def classify_document(text):
+    """Classify the document type using the trained classifier."""
+    return classifier.predict([text])[0]
 
 
 def plot_bar_chart(df):
@@ -84,7 +112,11 @@ def main():
             processed_text = preprocess_text(text)
             text_data = [processed_text]
             df_tfidf_sorted = tfidf_vectorization(text_data)
+            doc_type = classify_document(processed_text)
             plot = plot_bar_chart(df_tfidf_sorted.head(20))
+
+        st.subheader("Document Type Classification")
+        st.write(f"**Document Type:** {doc_type}")
 
         st.pyplot(plot)
 
