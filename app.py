@@ -11,22 +11,13 @@ from sklearn.pipeline import make_pipeline
 from nltk.corpus import stopwords
 from streamlit import session_state as ss
 from streamlit_pdf_viewer import pdf_viewer
-from docx import Document
-import pptx
-from PIL import Image
-import pytesseract
-import io
-import speech_recognition as sr
-from pydub import AudioSegment
-import tempfile
-from sklearn.metrics.pairwise import cosine_similarity
 
 nltk.download('stopwords')
 
 # Expanded training data for better classification accuracy
 DOCUMENT_TYPES = [
     "Resume", "Research Paper", "Scientific Report", "Medical Report", "Financial Report",
-    "Legal Document", "Business Proposal", "Technical Manual", "Educational Material", "Audio Transcript"
+    "Legal Document", "Business Proposal", "Technical Manual", "Educational Material"
 ]
 
 training_texts = [
@@ -38,12 +29,12 @@ training_texts = [
     "Contract, agreement, clauses, legal terms",  # Legal Document
     "Market analysis, financial projection, business strategy",  # Business Proposal
     "Hardware specifications, installation guide, troubleshooting",  # Technical Manual
-    "Syllabus, learning objectives, course material",  # Educational Material
-    "Recorded speech, conversations, audio transcripts"  # Audio Transcript
+    "Syllabus, learning objectives, course material"  # Educational Material
 ]
 
 classifier = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=300, random_state=42))
 classifier.fit(training_texts, DOCUMENT_TYPES)
+
 
 def extract_text_from_pdf(pdf_file):
     """Extract text from a PDF file."""
@@ -55,44 +46,6 @@ def extract_text_from_pdf(pdf_file):
                 text += page_text + " "
     return text.strip()
 
-def extract_text_from_docx(docx_file):
-    """Extract text from a DOCX file."""
-    doc = Document(docx_file)
-    return ' '.join([para.text for para in doc.paragraphs])
-
-def extract_text_from_pptx(pptx_file):
-    """Extract text from a PPTX file."""
-    presentation = pptx.Presentation(pptx_file)
-    text = ""
-    for slide in presentation.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text += shape.text + " "
-    return text.strip()
-
-def extract_text_from_image(image_file):
-    """Extract text from an image file."""
-    image = Image.open(io.BytesIO(image_file.read()))
-    return pytesseract.image_to_string(image)
-
-def extract_text_from_audio(audio_file):
-    """Extract text from an audio file."""
-    recognizer = sr.Recognizer()
-    audio_format = audio_file.type.split('/')[1]
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{audio_format}') as temp_audio:
-        temp_audio.write(audio_file.read())
-        temp_audio_path = temp_audio.name
-
-    if audio_format in ['mp3', 'mp4']:
-        audio = AudioSegment.from_file(temp_audio_path)
-        temp_audio_path = temp_audio_path.replace(audio_format, 'wav')
-        audio.export(temp_audio_path, format='wav')
-
-    with sr.AudioFile(temp_audio_path) as source:
-        audio_data = recognizer.record(source)
-
-    return recognizer.recognize_google(audio_data)
 
 def preprocess_text(text):
     """Preprocess text by removing punctuation, stopwords, and converting to lowercase."""
@@ -103,6 +56,7 @@ def preprocess_text(text):
     words = text.split()
     words = [word for word in words if word not in stop_words]
     return ' '.join(words)
+
 
 def tfidf_vectorization(text_data):
     """Compute TF-IDF scores and return a sorted DataFrame."""
@@ -117,47 +71,63 @@ def tfidf_vectorization(text_data):
     df_tfidf_sorted['Phrase'] = df_tfidf_sorted['Phrase'].str.title()
     return df_tfidf_sorted
 
+
 def classify_document(text):
     """Classify the document type using the trained classifier."""
     return classifier.predict([text])[0]
 
-def compute_similarity(text1, text2):
-    """Compute cosine similarity between two texts."""
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform([text1, text2])
-    return cosine_similarity(tfidf_matrix[0], tfidf_matrix[1])[0][0]
+
+def plot_bar_chart(df):
+    """Generate a bar chart of TF-IDF scores."""
+    colors = plt.cm.viridis(np.linspace(0, 1, len(df)))
+    fig, ax = plt.subplots()
+    ax.barh(df['Phrase'], df['TF-IDF Score'], color=colors)
+    ax.set_xlabel('TF-IDF Score')
+    ax.set_title('Top Words or Phrases by Score')
+    plt.xticks(rotation=90, ha='right')
+    plt.tight_layout()
+    ax.invert_yaxis()
+    return fig
+
 
 def main():
-    """Streamlit app for Smart Document Analyzer."""
-    st.title("Smart Document Analyzer")
+    """Streamlit app for PDF text analysis and visualization."""
+    st.title("TF-IDF Text Analyzer with PDF Viewer")
+    st.sidebar.file_uploader("Upload PDF file", type=['pdf'], key='pdf')
 
-    uploaded_files = st.sidebar.file_uploader("Drop your Files Here", type=['pdf', 'docx', 'pptx', 'png', 'jpeg', 'jpg', 'mp3', 'mp4', 'wav'], accept_multiple_files=True)
+    # Declare session variable for PDF reference and toggle
+    if 'pdf_ref' not in ss:
+        ss.pdf_ref = None
+    if 'show_pdf' not in ss:
+        ss.show_pdf = False
 
-    if uploaded_files:
-        texts = []
+    if ss.pdf:
+        ss.pdf_ref = ss.pdf  # Backup uploaded PDF
 
-        for uploaded_file in uploaded_files:
-            file_type = uploaded_file.type
-            if 'pdf' in file_type:
-                text = extract_text_from_pdf(uploaded_file)
-            elif 'officedocument.wordprocessingml' in file_type:
-                text = extract_text_from_docx(uploaded_file)
-            elif 'officedocument.presentationml' in file_type:
-                text = extract_text_from_pptx(uploaded_file)
-            elif 'image' in file_type:
-                text = extract_text_from_image(uploaded_file)
-            elif 'audio' in file_type:
-                text = extract_text_from_audio(uploaded_file)
-            else:
-                st.error("Unsupported file type")
-                continue
+    if ss.pdf_ref:
+        with st.spinner("Extracting text and processing..."):
+            text = extract_text_from_pdf(ss.pdf_ref)
+            processed_text = preprocess_text(text)
+            text_data = [processed_text]
+            df_tfidf_sorted = tfidf_vectorization(text_data)
+            doc_type = classify_document(processed_text)
+            plot = plot_bar_chart(df_tfidf_sorted.head(20))
 
-            texts.append(preprocess_text(text))
+        st.subheader("Document Type Classification")
+        st.write(f"**Document Type:** {doc_type}")
 
-        if len(texts) == 2:
-            similarity_score = compute_similarity(texts[0], texts[1])
-            st.subheader("🔗 Document Similarity Score")
-            st.write(f"**{similarity_score:.2f}**")
+        st.pyplot(plot)
+
+        st.subheader("Top TF-IDF Phrases")
+        st.dataframe(df_tfidf_sorted.head(20))
+
+        if st.button("Toggle PDF View"):
+            ss.show_pdf = not ss.show_pdf
+
+        if ss.show_pdf:
+            binary_data = ss.pdf_ref.getvalue()
+            pdf_viewer(input=binary_data, width=700)
+
 
 if __name__ == "__main__":
     main()
